@@ -220,21 +220,32 @@ void dataprot(int16_t start, uint16_t dats)
   uint16_t save = 0;
   for (int n = 0; n < GRAPHWIDTH - 3; n++) //液晶に描画 0~316?
   {
+    Serial.print("Check:");
+    Serial.println(n);
     if (drawy[n] != 255)
     {
+      Serial.print("Next:");
+      Serial.println(n + 1);
       if (drawy[n + 1] != 255) //次のデータは255ではない（実データ）
       {
+        Serial.println("Actual Data.");
         buf.drawLine((GRAPHX + 1 + n), (GRAPHY + GRAPHHEIGHT - drawy[n]), (GRAPHX + 2 + n), (GRAPHY + GRAPHHEIGHT - drawy[n + 1]), TFT_GREEN);
       }
       else
-      {                             //次のデータは２５５（パディング）
+      {             
+        Serial.println("Pading Data.");                //次のデータは２５５（パディング）
         save = n;                   //現在位置を保存する（開始位置を指定するため必要）　これは最後にデータがあった場所を表す
         while (drawy[n + 1] == 255) //隣を比較して２５５なら繰り返して実データが出るまで待機
         {
           n++;
+          Serial.println(n);
           if (n >= GRAPHWIDTH - 3)
             return;
         }
+        Serial.print("Drawing Start:");
+        Serial.println(save);
+        Serial.print("Drawing End:");
+        Serial.println(n);
         buf.drawLine((GRAPHX + 1 + save), (GRAPHY + GRAPHHEIGHT - drawy[save]), (GRAPHX + 2 + n), (GRAPHY + GRAPHHEIGHT - drawy[n + 1]), TFT_RED);
       }
     }
@@ -400,12 +411,6 @@ void task2(void *pvParameters)
         Serial.print(s);
         Serial.print(":");
         Serial.println(freqlog[s]);
-      }
-      for (int s = 0; s < GRAPHWIDTH - 2; s++)
-      {
-        Serial.print(s);
-        Serial.print(":");
-        Serial.println(drawy[s]);
       }
     }
     delay(1);
