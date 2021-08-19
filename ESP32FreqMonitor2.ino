@@ -109,8 +109,6 @@ unsigned int ext[] = {10, 20, 40, 50, 100, 200, 400, 500, 1000};
 unsigned int tim[] = {15, 30, 60, 120, 300, 600};
 uint8_t refreshflag = 0;
 
-uint8_t drawy[GRAPHWIDTH - 2];
-
 void bufdraw(void)
 {
   buf.pushSprite(0, 0);
@@ -170,38 +168,30 @@ void extcheck(void)
 
 void dataprot(int16_t start, uint16_t dats)
 {
-  //start = Most Newest Data Number
-  start = (DATAS + lastaddr - start) % DATAS; //Draw start address (rightside)
-  Serial.print("start");
-  Serial.println(start);
-  int16_t stcp = start;              //30  Make copy
-  int16_t laststcp = start;          //30 Lastdata  -> Change Ditect
-  float prestart = (float)start;     //30
-       //318
-  uint16_t drawx = (GRAPHWIDTH - 2); //318
+  start = (DATAS + lastaddr - start) % DATAS;
+  int16_t stcp = start;
+  int16_t laststcp = start;
+  float prestart = (float)start;
+  uint8_t drawy[GRAPHWIDTH - 2];
+  uint16_t drawx = (GRAPHWIDTH - 2);
   uint32_t sum = 0;
   uint16_t ave = 0;
   uint8_t offset = 0;
   uint8_t stchanged = 1;
   while (drawx > 0)
   {
-    for (int d = 0; d < AVEN; d++) //移動平均を求める　ただし平均をとる範囲はAVEN分（２）
+    for (int d = 0; d < AVEN; d++) //移動平均を求める
     {
-      sum += freqlog[((stcp + DATAS - d) % DATAS)]; //足しこみ
+      sum += freqlog[((stcp + DATAS - d) % DATAS)];
     }
-    //平均を算出
     ave = sum / AVEN;
-    //オフセット（DIV)分を求める　graphbottomの線から何DIV上に書くかということ
+    //オフセット（DIV)分を求める　graphbottomの線から何DIV上に書く
     for (int s = 1; s < DIVH; s++)
     {
       if ((graphbottom + resolution * s) <= ave) //resolutionは最小の目盛間隔10－＞0.010Hz
-      {
         offset++;
-      }
       else
-      {
         break;
-      }
     }
     //graphbottomからの絶対距離をdrawyに保持　ydivは1div当たりYピクセル数
     if (stchanged == 1)
@@ -210,9 +200,7 @@ void dataprot(int16_t start, uint16_t dats)
       stchanged = 0;
     }
     else
-    {
-      drawy[drawx - 1] = 255; //移動平均の開始位置が変わらない場合２５５で埋める
-    }
+      drawy[drawx - 1] = 255;
     //使用した変数を初期化
     offset = 0;
     ave = 0;
@@ -220,23 +208,14 @@ void dataprot(int16_t start, uint16_t dats)
     //1つ前のデータへ移動
     drawx--;
     //移動平均の開始位置をシフトする
-    prestart -= (dats / ((float)GRAPHWIDTH)); //内部処理用に移動平均の開始位置をシフト（小数部まで保持）
-    laststcp = stcp;                          //変わったか確かめるためにテンポラリに保存
-    stcp = (uint16_t)prestart;                //内部処理用位置（小数）を整数にして代入（小数点以下切り捨て）
-    if (laststcp == stcp)                     //移動平均の開始位置が変わったか調べる
-    {
+    prestart -= (dats / ((float)GRAPHWIDTH));
+    laststcp = stcp;
+    stcp = (int16_t)prestart;
+    if (laststcp == stcp)
       stchanged = 0;
-    }
     else
-    {
       stchanged = 1;
-    }
-    //リングバッファのループ対策、０未満でデータ数を足す
-    if (stcp < 0)
-      stcp += DATAS;
   }
-  Serial.print("end");
-  Serial.println(stcp);
   //draw
   uint16_t save = 0;
   for (int n = 0; n < GRAPHWIDTH - 3; n++) //液晶に描画 0~316?
@@ -254,9 +233,7 @@ void dataprot(int16_t start, uint16_t dats)
         {
           n++;
           if (n >= GRAPHWIDTH - 3)
-          {
             return;
-          }
         }
         buf.drawLine((GRAPHX + 1 + save), (GRAPHY + GRAPHHEIGHT - drawy[save]), (GRAPHX + 2 + n), (GRAPHY + GRAPHHEIGHT - drawy[n + 1]), TFT_RED);
       }
@@ -424,7 +401,7 @@ void task2(void *pvParameters)
         Serial.print(":");
         Serial.println(freqlog[s]);
       }
-      for (int s = 0; s < GRAPHWIDTH-2; s++)
+      for (int s = 0; s < GRAPHWIDTH - 2; s++)
       {
         Serial.print(s);
         Serial.print(":");
