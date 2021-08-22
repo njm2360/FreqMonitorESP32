@@ -141,8 +141,9 @@ void dataadd(uint16_t value)
 
 void extcheck(int16_t checkstart, uint16_t dats)
 {
-  uint16_t max = 60000;
-  uint16_t min = 60000;
+  checkstart = (DATAS + lastaddr - checkstart) % DATAS;
+  uint16_t max = 60010;
+  uint16_t min = 59990;
   int16_t checkend = (DATAS + checkstart - dats) % DATAS;
   int16_t n = checkstart;
   while (n != checkend)
@@ -161,14 +162,8 @@ void extcheck(int16_t checkstart, uint16_t dats)
       n = DATAS - 1;
     }
   }
-  if (min > 60000)
-    mindata = 60000;
-  else
-    mindata = min;
-  if (max < 60000)
-    maxdata = 60000;
-  else
-    maxdata = max;
+  mindata = min;
+  maxdata = max;
 }
 
 void dataprot(int16_t start, uint16_t dats)
@@ -296,6 +291,8 @@ void drawframehorz(void)
 void drawframevert(unsigned int sec)
 {
   unsigned int range = sec;
+  uint16_t numx = 0;
+  uint16_t numy = 0;
   int s = 0;
   for (s = 0; s < 6; s++)
   {
@@ -309,20 +306,21 @@ void drawframevert(unsigned int sec)
   while ((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv)) > GRAPHX)
   {
     buf.drawFastVLine((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv)), (GRAPHY + 1), (GRAPHHEIGHT - 2), TFT_WHITE);
-    buf.setCursor((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv) + 1), (GRAPHY + GRAPHHEIGHT - 8));
-    buf.setFont(&fonts::Font0);
-    buf.printf("%u", (tim[s] * t));
+    numx = (GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv) + 1);
+    numy = (GRAPHY + GRAPHHEIGHT - 8);
+    if (numx < (GRAPHWIDTH + GRAPHX - 5))
+    {
+      buf.setCursor(numx, numy);
+      buf.setFont(&fonts::Font0);
+      buf.printf("%u", (tim[s] * t));
+    }
     t++;
   }
 }
 
-void showinfo(void)
-{
-}
-
 void redraw(void)
 {
-  extcheck((lastaddr - dispshift), disprange);
+  extcheck(dispshift, disprange);
   //Frequency Draw
   sprintf(fbuf, "%7.4lf", freq);
   buf.setFont(&fonts::Font7);
@@ -409,23 +407,6 @@ void task2(void *pvParameters)
       }
       redraw();
     }
-    /*
-    if (digitalRead(33) == LOW)
-    {
-      Serial.println("Dump Start");
-      Serial.print("Lastaddress:");
-      Serial.println(lastaddr);
-      Serial.print("DataShifts:");
-      Serial.println(dispshift);
-      Serial.print("Range:");
-      Serial.println(disprange);
-      for (int s = 0; s < DATAS; s++)
-      {
-        Serial.print(s);
-        Serial.print(":");
-        Serial.println(freqlog[s]);
-      }
-    }*/
     delay(1);
   }
 }
@@ -449,10 +430,11 @@ void setup(void)
   buf.createSprite(320, 240);
   buf.setFont(&fonts::Font7);
   buf.setTextColor(TFT_WHITE);
+  buf.setTextWrap(false);
   //initialize log data
   for (int s = 0; s < DATAS; s++)
   {
-    freqlog[s] = 60000;
+    freqlog[s] = 59995;
   }
   //Crate task
   xTaskCreateUniversal(
