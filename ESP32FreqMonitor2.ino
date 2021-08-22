@@ -29,14 +29,14 @@ public:
       cfg.pin_sclk = 18;
       cfg.pin_mosi = 23;
       cfg.pin_miso = 19;
-      cfg.pin_dc = 27;
+      cfg.pin_dc = 5;
       _bus_instance.config(cfg);
       _panel_instance.setBus(&_bus_instance);
     }
 
     {
       auto cfg = _panel_instance.config();
-      cfg.pin_cs = 14;
+      cfg.pin_cs = 4;
       cfg.pin_rst = -1;
       cfg.pin_busy = -1;
       cfg.memory_width = 240;
@@ -59,7 +59,7 @@ public:
 
     {
       auto cfg = _light_instance.config();
-      cfg.pin_bl = 32;
+      cfg.pin_bl = 21;
       cfg.invert = false;
       cfg.freq = 44100;
       cfg.pwm_channel = 7;
@@ -132,20 +132,20 @@ void dataadd(uint16_t value)
   if (value > maxdata)
   {
     maxdata = value;
-    hrefaddr = lastaddr;
   }
   if (value < mindata)
   {
     mindata = value;
-    lrefaddr = lastaddr;
   }
 }
 
-void extcheck(void)
+void extcheck(int16_t checkstart, uint16_t dats)
 {
-  uint16_t max = 60010;
-  uint16_t min = 59990;
-  for (int n = 0; n < (DATAS - 1); n++)
+  uint16_t max = 60000;
+  uint16_t min = 60000;
+  int16_t checkend = (DATAS + checkstart - dats) % DATAS;
+  int16_t n = checkstart;
+  while (n != checkend)
   {
     if (freqlog[n] > max)
     {
@@ -155,13 +155,18 @@ void extcheck(void)
     {
       min = freqlog[n];
     }
+    n--;
+    if (n < 0)
+    {
+      n = DATAS - 1;
+    }
   }
-  if (min > 59990)
-    mindata = 59990;
+  if (min > 60000)
+    mindata = 60000;
   else
     mindata = min;
-  if (max < 60010)
-    maxdata = 60010;
+  if (max < 60000)
+    maxdata = 60000;
   else
     maxdata = max;
 }
@@ -220,36 +225,36 @@ void dataprot(int16_t start, uint16_t dats)
   uint16_t save = 0;
   for (int n = 0; n < GRAPHWIDTH - 3; n++) //液晶に描画 0~316?
   {
-    Serial.print("Check:");
-    Serial.println(n);
     if (drawy[n] != 255)
     {
-      Serial.print("Next:");
-      Serial.println(n + 1);
       if (drawy[n + 1] != 255) //次のデータは255ではない（実データ）
       {
-        Serial.println("Actual Data.");
-        buf.drawLine((GRAPHX + 1 + n), (GRAPHY + GRAPHHEIGHT - drawy[n]), (GRAPHX + 2 + n), (GRAPHY + GRAPHHEIGHT - drawy[n + 1]), TFT_GREEN);
+        buf.drawLine((GRAPHX + 1 + n), (GRAPHY + GRAPHHEIGHT - drawy[n]), (GRAPHX + 2 + n), (GRAPHY + GRAPHHEIGHT - drawy[n + 1]), TFT_RED);
       }
       else
-      {             
-        Serial.println("Pading Data.");                //次のデータは２５５（パディング）
+      {                             //次のデータは２５５（パディング）
         save = n;                   //現在位置を保存する（開始位置を指定するため必要）　これは最後にデータがあった場所を表す
         while (drawy[n + 1] == 255) //隣を比較して２５５なら繰り返して実データが出るまで待機
         {
           n++;
-          Serial.println(n);
           if (n >= GRAPHWIDTH - 3)
             return;
         }
-        Serial.print("Drawing Start:");
-        Serial.println(save);
-        Serial.print("Drawing End:");
-        Serial.println(n);
         buf.drawLine((GRAPHX + 1 + save), (GRAPHY + GRAPHHEIGHT - drawy[save]), (GRAPHX + 2 + n), (GRAPHY + GRAPHHEIGHT - drawy[n + 1]), TFT_RED);
       }
     }
   }
+}
+
+void drawframe(void)
+{
+  //Draw Outside Frame and Value
+  buf.drawRect(GRAPHX, GRAPHY, GRAPHWIDTH, GRAPHHEIGHT, TFT_RED);
+  buf.setFont(&fonts::Font0);
+  buf.setCursor(GRAPHX + 2, GRAPHY + 1);
+  buf.printf("%5u", graphtop);
+  buf.setCursor(GRAPHX + 2, GRAPHY + GRAPHHEIGHT - 7);
+  buf.printf("%5u", graphbottom);
 }
 
 void drawframehorz(void)
@@ -280,18 +285,12 @@ void drawframehorz(void)
   //Draw Horizontal Line
   while ((graphtop - ext[s] * t) > graphbottom)
   {
-    buf.drawFastHLine((GRAPHX + 1), (GRAPHY + (ydiv * t)), (GRAPHWIDTH - 2), TFT_WHITE);
+    buf.drawFastHLine((GRAPHX + 1), (GRAPHY + (ydiv * t)), (GRAPHWIDTH - 2), (((graphtop - ext[s] * t) == 60000) ? TFT_YELLOW : TFT_WHITE));
     buf.setCursor(GRAPHX + 2, (GRAPHY + (ydiv * t) + 1));
-    buf.setFont(&fonts::TomThumb);
+    buf.setFont(&fonts::Font0);
     buf.printf("%5u", (graphtop - ext[s] * t));
     t++;
   }
-  //Draw Outside Frame and Value
-  buf.drawRect(GRAPHX, GRAPHY, GRAPHWIDTH, GRAPHHEIGHT, TFT_RED);
-  buf.setCursor(GRAPHX + 2, GRAPHY + 1);
-  buf.printf("%5u", graphtop);
-  buf.setCursor(GRAPHX + 2, GRAPHY + GRAPHHEIGHT - 7);
-  buf.printf("%5u", graphbottom);
 }
 
 void drawframevert(unsigned int sec)
@@ -310,9 +309,9 @@ void drawframevert(unsigned int sec)
   while ((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv)) > GRAPHX)
   {
     buf.drawFastVLine((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv)), (GRAPHY + 1), (GRAPHHEIGHT - 2), TFT_WHITE);
-    buf.setCursor((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv) + 1), (GRAPHY + GRAPHHEIGHT - 7));
-    buf.setFont(&fonts::TomThumb);
-    buf.printf("%3u", (tim[s] * t));
+    buf.setCursor((GRAPHX + GRAPHWIDTH - (t * (xdiv * tim[s])) + (dispshift * xdiv) + 1), (GRAPHY + GRAPHHEIGHT - 8));
+    buf.setFont(&fonts::Font0);
+    buf.printf("%u", (tim[s] * t));
     t++;
   }
 }
@@ -323,6 +322,7 @@ void showinfo(void)
 
 void redraw(void)
 {
+  extcheck((lastaddr - dispshift), disprange);
   //Frequency Draw
   sprintf(fbuf, "%7.4lf", freq);
   buf.setFont(&fonts::Font7);
@@ -336,6 +336,7 @@ void redraw(void)
   buf.setCursor(240, 0);
   buf.println(disprange);
   //Frame Draw
+  drawframe();
   drawframehorz();
   drawframevert(disprange);
   //Data Draw
@@ -358,12 +359,7 @@ void task1(void *pvParameters)
         period = atol(buff);
         freq = ((double)16000000 / (double)period);
         dataadd((uint16_t)(freq * 1000));
-        extcheck();
         refreshflag = 1;
-        if ((uint16_t)(freq * 1000) > 61000)
-        {
-          Serial.println(buff);
-        }
       }
     }
     vTaskDelay(1);
@@ -379,7 +375,7 @@ void task2(void *pvParameters)
       refreshflag = 0;
       redraw();
     }
-    if (digitalRead(25) == LOW)
+    if (digitalRead(26) == LOW)
     {
       dispshift += 1;
       if (dispshift == 1000)
@@ -388,7 +384,7 @@ void task2(void *pvParameters)
       }
       redraw();
     }
-    if (digitalRead(26) == LOW)
+    if (digitalRead(27) == LOW)
     {
       dispshift -= 1;
       if (dispshift == -1)
@@ -397,6 +393,23 @@ void task2(void *pvParameters)
       }
       redraw();
     }
+    if (digitalRead(14) == LOW)
+    {
+      if (disprange != 0)
+      {
+        disprange--;
+      }
+      redraw();
+    }
+    if (digitalRead(13) == LOW)
+    {
+      if (disprange != 1000)
+      {
+        disprange++;
+      }
+      redraw();
+    }
+    /*
     if (digitalRead(33) == LOW)
     {
       Serial.println("Dump Start");
@@ -412,34 +425,19 @@ void task2(void *pvParameters)
         Serial.print(":");
         Serial.println(freqlog[s]);
       }
-    }
+    }*/
     delay(1);
   }
 }
 
 void setup(void)
 {
-  //Crate task
-  xTaskCreateUniversal(
-      task1,
-      "task1",
-      8192,
-      NULL,
-      1,
-      NULL,
-      PRO_CPU_NUM);
-  xTaskCreateUniversal(
-      task2,
-      "task2",
-      8192,
-      NULL,
-      1,
-      NULL,
-      APP_CPU_NUM);
+
   //Initialize
-  pinMode(25, INPUT);
+  pinMode(13, INPUT);
+  pinMode(14, INPUT);
   pinMode(26, INPUT);
-  pinMode(33, INPUT);
+  pinMode(27, INPUT);
   Serial.begin(115200);
   Ser.begin(115200);
   //LCD initialize
@@ -456,6 +454,23 @@ void setup(void)
   {
     freqlog[s] = 60000;
   }
+  //Crate task
+  xTaskCreateUniversal(
+      task2,
+      "task2",
+      8192,
+      NULL,
+      1,
+      NULL,
+      APP_CPU_NUM);
+  xTaskCreateUniversal(
+      task1,
+      "task1",
+      8192,
+      NULL,
+      1,
+      NULL,
+      PRO_CPU_NUM);
 }
 
 void loop(void)
