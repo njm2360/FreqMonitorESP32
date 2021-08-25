@@ -5,6 +5,8 @@ HardwareSerial Ser(2);
 #include <LovyanGFX.hpp>
 #include <stdlib.h>
 #include <stdint.h>
+#include <FS.h>
+#include <SD.h>
 
 TaskHandle_t th[2];
 
@@ -53,7 +55,6 @@ public:
       cfg.rgb_order = false;
       cfg.dlen_16bit = false;
       cfg.bus_shared = true;
-
       _panel_instance.config(cfg);
     }
 
@@ -78,9 +79,9 @@ static LGFX_Sprite buf(&lcd);
 #define GRAPHY 58
 #define GRAPHHEIGHT 180
 #define GRAPHWIDTH 320
-#define DATAS 1000
+#define DATAS 2000
 #define AVEN 2
-#define DIVH 6
+#define DIVH 8
 #define DIVV 6
 //---------------------------------------------
 
@@ -109,9 +110,32 @@ unsigned int ext[] = {10, 20, 40, 50, 100, 200, 400, 500, 1000};
 unsigned int tim[] = {15, 30, 60, 120, 300, 600};
 uint8_t refreshflag = 0;
 
+//SD card
+int cs_SD = 22;
+const char *fname = "/log.txt";
+File logFile;
+
+void sdwrite(void)
+{
+  logFile = SD.open(fname, FILE_APPEND);
+  if (logFile)
+  {
+    Serial.println("SD Open!");
+    logFile.println(freqlog[lastaddr]);
+    Serial.println("SD Write!");
+    logFile.close();
+  }
+  else
+  {
+    Serial.println("Open Failured");
+  }
+}
+
 void bufdraw(void)
 {
+  lcd.startWrite();
   buf.pushSprite(0, 0);
+  lcd.endWrite();
   buf.clear();
 }
 
@@ -372,6 +396,7 @@ void task2(void *pvParameters)
     {
       refreshflag = 0;
       redraw();
+      sdwrite();
     }
     if (digitalRead(26) == LOW)
     {
@@ -401,7 +426,7 @@ void task2(void *pvParameters)
     }
     if (digitalRead(13) == LOW)
     {
-      if (disprange != 1000)
+      if (disprange != DATAS)
       {
         disprange++;
       }
@@ -421,21 +446,31 @@ void setup(void)
   pinMode(27, INPUT);
   Serial.begin(115200);
   Ser.begin(115200);
-  //LCD initialize
+  //initialize log data
+  for (int s = 0; s < DATAS; s++)
+  {
+    freqlog[s] = 59995;
+  }
+  //SD Initialize
+  if (SD.begin(cs_SD, SPI, 24000000, "/sd"))
+  {
+    Serial.println("SD OK!");
+  }
+  else
+  {
+    Serial.println("SD NG!");
+  }
+  //LCD initialize and configuretion
   lcd.init();
+  lcd.setRotation(0);
   lcd.setTextSize((std::max(lcd.width(), lcd.height()) + 255) >> 8);
-  lcd.fillScreen(TFT_BLACK);
   buf.setPsram(true);
   buf.setColorDepth(8);
   buf.createSprite(320, 240);
   buf.setFont(&fonts::Font7);
   buf.setTextColor(TFT_WHITE);
   buf.setTextWrap(false);
-  //initialize log data
-  for (int s = 0; s < DATAS; s++)
-  {
-    freqlog[s] = 59995;
-  }
+  lcd.clear();
   //Crate task
   xTaskCreateUniversal(
       task2,
